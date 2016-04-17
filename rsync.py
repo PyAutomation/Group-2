@@ -6,7 +6,19 @@ import os.path
 import subprocess
 import shlex
 import re
+import logging
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler('trace.log')
+fh.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+logger.addHandler(fh)
+logger.addHandler(ch)
 
 def rsync(sftp, ssh, localPath, remoteDir):
     """The rsync function"""
@@ -60,6 +72,7 @@ def copy_file(sftp, source, dest):
     """Copies local file *source* to remote *dest* folder"""
 
     file = os.path.basename(source)
+    logger.info('Copying %s to %s', source, dest)
     sftp.put(source, os.path.join(dest, file))
 
 
@@ -70,6 +83,7 @@ def copy_dir(sftp, source, dest, *options):
 
     dir = os.path.basename(source)
     if 'r' in options:
+        logger.info('Creating directory %s', os.path.join(dest, dir))
         sftp.mkdir(os.path.join(dest, dir))
         for filename in os.listdir(source):
             file = os.path.join(source, filename)
@@ -78,6 +92,7 @@ def copy_dir(sftp, source, dest, *options):
             elif os.path.isdir(file):
                 copy_dir(sftp, file, os.path.join(dest, dir), 'r')
     else:
+        logger.info('Creating directory %s', os.path.join(dest, dir))
         sftp.mkdir(os.path.join(dest, dir))
 
 
@@ -111,22 +126,29 @@ def main():
     t = paramiko.Transport((hostname, port))
     username = "ed"
     password = "qwerty"
+    logger.info('Establishing sFTP connection with %s...', hostname)
     t.connect(username=username, password=password)
+    logger.info('sFTP Connection with %s established', hostname)
     sftp = paramiko.SFTPClient.from_transport(t)
 
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    logger.info('Establishing SSH connection with %s', hostname)
     ssh.connect('ubuntu-server', username=username, password=password)
+    logger.info('SSH connection with %s established', hostname)
     
-    rsync(sftp, ssh, '/home/ed/Python/hw7', '/home/ed/tmp')    
+    rsync(sftp, ssh, '/home/ed/Python/hw7-1', '/home/ed/tmp')    
 
 
 if __name__ == "__main__":    
-    #main()
+    main()
+    """
+    logger.info('First info message')
     str = "root:22@host.com:/dir/sde"
     d = check_connection(str)
     if d:
         print d
     else:
         print "Wrong connection details"
-
+    logger.error('Last debug message')
+    """
