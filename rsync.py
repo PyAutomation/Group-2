@@ -7,6 +7,8 @@ import subprocess
 import shlex
 import re
 import logging
+import argparse
+import sys
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -107,7 +109,7 @@ def get_hash(path):
 def check_connection(host):
     """Checks whether the server connection details follow the user:port@host:directory pattern"""
 
-    pattern = '([\w.]+)(:|,)([0-9]+)@([\w.]+):/([\w./]+)'
+    pattern = '([\w.]+)(:|,)([0-9]+)@([\w.]+):(/[\w./]+)'
     connection = {}
     match = re.search(pattern, host)
     if match:
@@ -118,14 +120,32 @@ def check_connection(host):
     return connection
 
 
-def main():
-    """Some trash to test routines implemented so far"""
+def parser():
+    "Parses command-line"
+    parser = argparse.ArgumentParser(description='Parser')
+    parser.add_argument('-P', action='store_true', help='equivalent to --partial --progress')
+    parser.add_argument('-S', action='store_true', help='Handle sparse files efficiently')
+    parser.add_argument('-a', action='store_true', help='Archive mode')
+    parser.add_argument('-e', action='store', help='Specify the remote shell to use')
+    parser.add_argument('-q', action='store_true', help='Decrease verbosity')
+    parser.add_argument('-v', action='store_true', help='Increase verbosity')
+    parser.add_argument('-z', action='store_true', help='Compress file data during the transfer')
+    parser.add_argument('-pass', action='store', dest='passwd', help='Increase verbosity')
+    parser.add_argument('-progress', action='store_true', help='Increase verbosity')
+    parser.add_argument('source')
+    parser.add_argument('dest')
+    args = parser.parse_args()
+    d = {}
+    d["passwd"] = args.passwd
+    d["source"] = args.source
+    d["dest"] = args.dest
+    return d
+
+
+def main(hostname, port, username, password, source, dest):
+    """Some trash to test existing routines"""
     
-    hostname = "ubuntu-server"
-    port = 22
     t = paramiko.Transport((hostname, port))
-    username = "ed"
-    password = "qwerty"
     logger.info('Establishing sFTP connection with %s...', hostname)
     t.connect(username=username, password=password)
     logger.info('sFTP Connection with %s established', hostname)
@@ -137,18 +157,32 @@ def main():
     ssh.connect('ubuntu-server', username=username, password=password)
     logger.info('SSH connection with %s established', hostname)
     
-    rsync(sftp, ssh, '/home/ed/Python/hw7-1', '/home/ed/tmp')    
+    rsync(sftp, ssh, source, dest)   
 
 
 if __name__ == "__main__":    
-    main()
-    """
-    logger.info('First info message')
-    str = "root:22@host.com:/dir/sde"
-    d = check_connection(str)
-    if d:
-        print d
+    cmd_args = parser()
+    connection = check_connection(cmd_args["dest"])
+    if not connection:
+        logger.error('Wrong connection details. Exiting the program...')
+        sys.exit(1)
     else:
-        print "Wrong connection details"
-    logger.error('Last debug message')
-    """
+        hostname = connection['host']
+        port = connection['port']
+        username = connection['username']
+        dest = connection['directory']
+    source = os.path.expanduser(cmd_args["source"])
+    if not os.path.exists(source):
+        logger.error("Source file or directory %s does not exist. Exiting the program...", source)
+        sys.exit(1)
+    dest = os.path.expanduser(dest)
+    if not os.path.exists(dest):
+        logger.error("Destination directory %s does not exist. Exiting the program...", dest)
+        sys.exit(1)
+    if not cmd_args["passwd"]:
+        logger.error("No password provided. Exiting the program...")
+        sys.exit(1)
+    else:
+        password = cmd_args["passwd"]
+
+    main(hostname, port, username, password, source, dest)
