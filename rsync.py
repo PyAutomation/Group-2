@@ -154,7 +154,7 @@ def main(hostname, port, username, password, source, dest):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     logger.info('Establishing SSH connection with %s', hostname)
-    ssh.connect('ubuntu-server', username=username, password=password)
+    ssh.connect(hostname, username=username, password=password)
     logger.info('SSH connection with %s established', hostname)
     
     rsync(sftp, ssh, source, dest)   
