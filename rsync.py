@@ -1,34 +1,17 @@
 #!/usr/bin/python
 
+import subprocess
+import shlex
+from parser import Parser
+from logger import log
 import paramiko
 import os
 import os.path
-import subprocess
-import shlex
-import re
-import logging
-import argparse
 import sys
 
-class Logger(object):
-    def __init__(self, level):
-        self.logger = logging.getLogger(__name__)
-        if not len(self.logger.handlers):
-            self.logger.setLevel(level)
-            self.fh = logging.FileHandler('trace.log')
-            self.fh.setLevel(level)
-            self.ch = logging.StreamHandler()
-            self.ch.setLevel(level)
-            self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            self.fh.setFormatter(self.formatter)
-            self.ch.setFormatter(self.formatter)
-            self.logger.addHandler(self.fh)
-            self.logger.addHandler(self.ch)
 
-log = Logger(logging.INFO)
-
-def rsync(sftp, ssh, localPath, remoteDir):
-    """The rsync function"""
+def syncronize(sftp, ssh, localPath, remoteDir):
+    """Helper function"""
 
     if os.path.isfile(localPath):
         sync_file(sftp, ssh, localPath, remoteDir)
@@ -48,7 +31,7 @@ def sync_dir(sftp, ssh, localPath, remoteDir):
         elif os.path.isdir(file):
             try:
                 sftp.stat(os.path.join(remoteDir, filename))
-                rsync(sftp, ssh, file, os.path.join(remoteDir, filename))
+                syncronize(sftp, ssh, file, os.path.join(remoteDir, filename))
             except:
                 copy_dir(sftp, file, remoteDir, 'r')
 
@@ -111,83 +94,33 @@ def get_hash(path):
     return ps.stdout.read().split()[0]
 
 
-def check_connection(host):
-    """Checks whether the server connection details follow the user:port@host:directory pattern"""
+def rsync():
+    parser = Parser()
 
-    pattern = '([\w.]+)(:|,)([0-9]+)@([\w.]+):(/[\w./]+)'
-    connection = {}
-    match = re.search(pattern, host)
-    if match:
-        connection['username'] = match.group(1)
-        connection['port'] = int(match.group(3))
-        connection['host'] = match.group(4)
-        connection['directory'] = match.group(5)
-    return connection
+    for source in parser.sources:
+        for destination in parser.destinations:
+            username = destination['username']
+            password = destination['passwd']
+            host = destination['host']
+            port = destination['port']
+            dest = destination['directory']
 
+            t = paramiko.Transport((host, port))
+            log.logger.info('Establishing sFTP connection with %s:%s', host, port)
+            t.connect(username=username, password=password)
+            log.logger.info('sFTP Connection with %s established', host)
+            sftp = paramiko.SFTPClient.from_transport(t)
 
-def parser():
-    "Parses command-line"
-    parser = argparse.ArgumentParser(description='Parser')
-    parser.add_argument('-P', action='store_true', help='equivalent to --partial --progress')
-    parser.add_argument('-S', action='store_true', help='Handle sparse files efficiently')
-    parser.add_argument('-a', action='store_true', help='Archive mode')
-    parser.add_argument('-e', action='store', help='Specify the remote shell to use')
-    parser.add_argument('-q', action='store_true', help='Decrease verbosity')
-    parser.add_argument('-v', action='store_true', help='Increase verbosity')
-    parser.add_argument('-z', action='store_true', help='Compress file data during the transfer')
-    parser.add_argument('-pass', action='store', dest='passwd', help='Increase verbosity')
-    parser.add_argument('-progress', action='store_true', help='Increase verbosity')
-    parser.add_argument('source')
-    parser.add_argument('dest')
-    args = parser.parse_args()
-    d = {}
-    d["passwd"] = args.passwd
-    d["source"] = args.source
-    d["dest"] = args.dest
-    return d
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            log.logger.info('Establishing SSH connection with %s', host)
+            ssh.connect(hostname=host, port=port, username=username, password=password)
+            log.logger.info('SSH connection with %s established', host)
+            
+            syncronize(sftp, ssh, source, dest)
+            sftp.close()
+            ssh.close()   
 
 
-def main(hostname, port, username, password, source, dest):
-    """Some trash to test existing routines"""
-    
-    t = paramiko.Transport((hostname, port))
-    log.logger.info('Establishing sFTP connection with %s...', hostname)
-    t.connect(username=username, password=password)
-    log.logger.info('sFTP Connection with %s established', hostname)
-    sftp = paramiko.SFTPClient.from_transport(t)
-
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    log.logger.info('Establishing SSH connection with %s', hostname)
-    ssh.connect('ubuntu-server', username=username, password=password)
-    log.logger.info('SSH connection with %s established', hostname)
-    
-    rsync(sftp, ssh, source, dest)   
-
-
-if __name__ == "__main__":    
-    cmd_args = parser()
-    connection = check_connection(cmd_args["dest"])
-    if not connection:
-        log.logger.error('Wrong connection details. Exiting the program...')
-        sys.exit(1)
-    else:
-        hostname = connection['host']
-        port = connection['port']
-        username = connection['username']
-        dest = connection['directory']
-    source = os.path.expanduser(cmd_args["source"])
-    if not os.path.exists(source):
-        log.logger.error("Source file or directory %s does not exist. Exiting the program...", source)
-        sys.exit(1)
-    dest = os.path.expanduser(dest)
-    if not os.path.exists(dest):
-        log.logger.error("Destination directory %s does not exist. Exiting the program...", dest)
-        sys.exit(1)
-    if not cmd_args["passwd"]:
-        log.logger.error("No password provided. Exiting the program...")
-        sys.exit(1)
-    else:
-        password = cmd_args["passwd"]
-
-    main(hostname, port, username, password, source, dest)
+if __name__ == "__main__":
+    rsync()
