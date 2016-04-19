@@ -10,17 +10,22 @@ import logging
 import argparse
 import sys
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-fh = logging.FileHandler('trace.log')
-fh.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-logger.addHandler(fh)
-logger.addHandler(ch)
+class Logger(object):
+    def __init__(self, level):
+        self.logger = logging.getLogger(__name__)
+        if not len(self.logger.handlers):
+            self.logger.setLevel(level)
+            self.fh = logging.FileHandler('trace.log')
+            self.fh.setLevel(level)
+            self.ch = logging.StreamHandler()
+            self.ch.setLevel(level)
+            self.formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            self.fh.setFormatter(self.formatter)
+            self.ch.setFormatter(self.formatter)
+            self.logger.addHandler(self.fh)
+            self.logger.addHandler(self.ch)
+
+log = Logger(logging.INFO)
 
 def rsync(sftp, ssh, localPath, remoteDir):
     """The rsync function"""
@@ -74,7 +79,7 @@ def copy_file(sftp, source, dest):
     """Copies local file *source* to remote *dest* folder"""
 
     file = os.path.basename(source)
-    logger.info('Copying %s to %s', source, dest)
+    log.logger.info('Copying %s to %s', source, dest)
     sftp.put(source, os.path.join(dest, file))
 
 
@@ -85,7 +90,7 @@ def copy_dir(sftp, source, dest, *options):
 
     dir = os.path.basename(source)
     if 'r' in options:
-        logger.info('Creating directory %s', os.path.join(dest, dir))
+        log.logger.info('Creating directory %s', os.path.join(dest, dir))
         sftp.mkdir(os.path.join(dest, dir))
         for filename in os.listdir(source):
             file = os.path.join(source, filename)
@@ -94,7 +99,7 @@ def copy_dir(sftp, source, dest, *options):
             elif os.path.isdir(file):
                 copy_dir(sftp, file, os.path.join(dest, dir), 'r')
     else:
-        logger.info('Creating directory %s', os.path.join(dest, dir))
+        log.logger.info('Creating directory %s', os.path.join(dest, dir))
         sftp.mkdir(os.path.join(dest, dir))
 
 
@@ -146,16 +151,16 @@ def main(hostname, port, username, password, source, dest):
     """Some trash to test existing routines"""
     
     t = paramiko.Transport((hostname, port))
-    logger.info('Establishing sFTP connection with %s...', hostname)
+    log.logger.info('Establishing sFTP connection with %s...', hostname)
     t.connect(username=username, password=password)
-    logger.info('sFTP Connection with %s established', hostname)
+    log.logger.info('sFTP Connection with %s established', hostname)
     sftp = paramiko.SFTPClient.from_transport(t)
 
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    logger.info('Establishing SSH connection with %s', hostname)
+    log.logger.info('Establishing SSH connection with %s', hostname)
     ssh.connect('ubuntu-server', username=username, password=password)
-    logger.info('SSH connection with %s established', hostname)
+    log.logger.info('SSH connection with %s established', hostname)
     
     rsync(sftp, ssh, source, dest)   
 
@@ -164,7 +169,7 @@ if __name__ == "__main__":
     cmd_args = parser()
     connection = check_connection(cmd_args["dest"])
     if not connection:
-        logger.error('Wrong connection details. Exiting the program...')
+        log.logger.error('Wrong connection details. Exiting the program...')
         sys.exit(1)
     else:
         hostname = connection['host']
@@ -173,14 +178,14 @@ if __name__ == "__main__":
         dest = connection['directory']
     source = os.path.expanduser(cmd_args["source"])
     if not os.path.exists(source):
-        logger.error("Source file or directory %s does not exist. Exiting the program...", source)
+        log.logger.error("Source file or directory %s does not exist. Exiting the program...", source)
         sys.exit(1)
     dest = os.path.expanduser(dest)
     if not os.path.exists(dest):
-        logger.error("Destination directory %s does not exist. Exiting the program...", dest)
+        log.logger.error("Destination directory %s does not exist. Exiting the program...", dest)
         sys.exit(1)
     if not cmd_args["passwd"]:
-        logger.error("No password provided. Exiting the program...")
+        log.logger.error("No password provided. Exiting the program...")
         sys.exit(1)
     else:
         password = cmd_args["passwd"]
