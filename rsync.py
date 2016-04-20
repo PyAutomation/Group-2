@@ -9,6 +9,7 @@ import os
 import os.path
 import sys
 
+# I do not see rsync utility ever used here, but this is my favourite one :( 
 
 def syncronize(sftp, ssh, localPath, remoteDir):
     """Helper function"""
