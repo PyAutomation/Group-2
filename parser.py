@@ -53,6 +53,7 @@ class Parser(object):
             and connection settings. Exits with the error code in case of failure."""
 
         pattern = '([\w.]+)(:|,)([0-9]+)@([\w.]+):(/[\w./]+)'
+        # Looks good, but what if I submit 22:user@host  ?
         match = re.search(pattern, host)
 
         if not match:
@@ -60,8 +61,8 @@ class Parser(object):
 
         connection = {}
         connection['username'] = match.group(1)
-        connection['port'] = int(match.group(3))
-        connection['host'] = match.group(4)
+        connection['port'] = int(match.group(3)) # What if Port will be mistyped 22w ? How about data validation and type conversions? 
+        connection['host'] = match.group(4) # How about forced conversion all host names to IPs?
         connection['directory'] = match.group(5)
         connection['passwd'] = self.args.passwd
             
