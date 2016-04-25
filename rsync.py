@@ -38,8 +38,10 @@ def sync_dir(sftp, ssh, localPath, remoteDir):
 
 
 def sync_file(sftp, ssh, localPath, remoteDir):
-    """Syncronizes file available locally at localPath and
-        file with the same name available in remote remoteDir derectory"""
+    """
+    Syncronizes file available locally at localPath and
+    file with the same name available in remote remoteDir derectory
+    """
 
     if not check(sftp, ssh, localPath, remoteDir):
         copy_file(sftp, localPath, remoteDir)
